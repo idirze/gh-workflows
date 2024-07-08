@@ -1,0 +1,72 @@
+#
+# Copyright 2024 tosit.io
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: release-please
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      github_releases: ${{ steps.github-releases.outputs.result }}
+    # Skip the release process in the fork
+    # The pull request should come from the same repo (github_token from the fork does not have write permissions)
+    if: github.repository_owner == 'idirze' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release-please
+      
+      - uses: actions/github-script@v7
+        id: github-releases
+        with:
+          script: |
+            const charts_released = JSON.parse(JSON.stringify(${{ steps.release-please.outputs.paths_released }}))
+            const releases_output = JSON.parse(JSON.stringify(${{ toJSON(steps.release-please.outputs) }}))
+            const github_releases = []
+            for(const chart_name of charts_released){
+              github_releases.push(
+                {
+                  chart_name: chart_name,
+                  version: releases_output[`${chart_name}--version`]
+                }
+              )
+            }
+            return github_releases
+
+  publish:
+    if: needs.release-please.outputs.github_releases != '[]'
+    needs: [release-please]
+    strategy:
+      matrix: 
+        release: ${{ fromJson(needs.release-please.outputs.github_releases) }}
+      fail-fast: false
+      # Prevent concurrency conflicts when updating index.yaml in gh-pages
+      max-parallel: 1
+    uses: idirze/workflows/.github/workflows/helm-publish.yml@main
+    with:
+      chart_name: ${{ matrix.release.chart_name }}
+      version: ${{ matrix.release.version }}
+                
