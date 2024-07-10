@@ -46,11 +46,12 @@ jobs:
             const charts_released = JSON.parse(JSON.stringify(${{ steps.release-please.outputs.paths_released }}))
             const releases_output = JSON.parse(JSON.stringify(${{ toJSON(steps.release-please.outputs) }}))
             const github_releases = []
-            for(const chart_name of charts_released){
+            for(const path of charts_released){
               github_releases.push(
                 {
-                  chart_name: chart_name,
-                  version: releases_output[`${chart_name}--version`]
+                  path: path,
+                  chart_name: path.replace(/^.+\//,''),
+                  version: releases_output[`${path}--version`]
                 }
               )
             }
@@ -67,6 +68,8 @@ jobs:
       max-parallel: 1
     uses: idirze/workflows/.github/workflows/helm-publish.yml@main
     with:
+      path: ${{ matrix.release.path }}
       chart_name: ${{ matrix.release.chart_name }}
       version: ${{ matrix.release.version }}
+    secrets: inherit
                 
