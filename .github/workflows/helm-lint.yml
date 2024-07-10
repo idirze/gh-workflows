@@ -71,21 +71,18 @@ jobs:
         run: ct install --config .ct.yml --print-config
 
       - name: Install helm-docs
-        if: steps.list-changed.outputs.changed == 'true'
         uses: idirze/workflows/.github/actions/helm-docs@main
 
       - name: Generate helm docs
-        if: steps.list-changed.outputs.changed == 'true'
         run: |
-          echo "Generate docs from charts: ${{ steps.list-changed.outputs.list_changed }}"
-          helm-docs --chart-to-generate $(echo "${{ steps.list-changed.outputs.list_changed }}" | tr " " ",")
+          echo "Generate docs from charts"
+          helm-docs -c .
 
       - name: Commit helm docs changes
         # Github token from forked repo does not have permission to push to target repo
         # Skip the step for PRs from forked repos
         if: |
-            ${{ steps.list-changed.outputs.changed == 'true' 
-            && ((github.event_name == 'push') || (github.event_name == 'pull_request'
+            ${{ ((github.event_name == 'push') || (github.event_name == 'pull_request'
                   && github.event.pull_request.head.repo.full_name == github.repository)) }}
         uses: EndBug/add-and-commit@v9
         with:
