@@ -1,7 +1,7 @@
 [![License Apache2](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
 <p align="center">
-    <img width="400px" height=auto src="docs/logo/inverted/okdp-inverted.png" />
+    <img width="400px" height=auto src="https://okdp.io/logos/okdp-inverted.png" />
 </p>
 
 Collection of github actions [reusable workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows) and [actions](https://docs.github.com/en/actions/creating-actions/about-custom-actions#about-custom-actions) shared by the OKDP platform components (helm charts, docker images, etc)
