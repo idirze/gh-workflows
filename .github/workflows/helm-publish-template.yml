@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-name: publish 
+name: publish helm chart into oci registry
 
 on:
   workflow_call:
@@ -31,9 +31,12 @@ on:
         description: Helm chart version
         required: true
         type: string
+      git_tag_name:
+        description: Github released tag name
+        required: true
+        type: string
   
 env:
-  release_tag_name: ${{ inputs.chart_name }}-v${{ inputs.version }}
   chart_package_name: ${{ inputs.chart_name }}-${{ inputs.version }}.tgz
   cr_release_name_template: "{{ .Name }}-v{{ .Version }}"
 
@@ -44,18 +47,18 @@ defaults:
 jobs:
 
   helm-chart-publish:
-    name: "Publish (${{ inputs.chart_name }}-${{ inputs.version }})"
+    name: "Helm publish (${{ inputs.chart_name }}-${{ inputs.version }})"
     runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout release tag ${{ env.release_tag_name }} ⚡️
+      - name: Checkout release tag ${{ inputs.git_tag_name }} ⚡️
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.release_tag_name }}
+          ref: ${{ inputs.git_tag_name }}
       
       - name: Update release title
         run: |
-          gh release edit ${{ env.release_tag_name }} --title="${{ inputs.chart_name }}-helm-chart-${{ inputs.version }}"
+          gh release edit ${{ inputs.git_tag_name }} --title="${{ inputs.chart_name }}-helm-chart-${{ inputs.version }}"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -88,7 +91,7 @@ jobs:
             #echo "registry_repo=${{ vars.REGISTRY || 'quay.io' }}/${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
      
       # More secure than helm registry login
-      - name: Login into quay.io oci charts registry 🔐
+      - name: Login into ${{ steps.registry.outputs.registry }} oci charts registry 🔐
         uses: docker/login-action@v3
         with:
           registry: ${{ steps.registry.outputs.registry }}
@@ -108,7 +111,7 @@ jobs:
 
       - name: Upload Chart ${{ env.chart_package_name }} package to Github release  📤
         run: |
-          gh release upload ${{ env.release_tag_name }} ./.cr-release-packages/${{ env.chart_package_name }} --clobber
+          gh release upload ${{ inputs.git_tag_name }} ./.cr-release-packages/${{ env.chart_package_name }} --clobber
         env:
           GH_TOKEN: ${{ github.token }}
 

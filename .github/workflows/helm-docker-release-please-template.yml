@@ -1,0 +1,67 @@
+#
+# Copyright 2024 tosit.io
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: publish docker and helm chart into container registry
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        description: Package path
+        required: true
+        type: string
+      package:
+        description: Package being released (helm chart, docker image)
+        required: true
+        type: string
+      version:
+        description: Helm chart or docker image version
+        required: true
+        type: string
+      package_type:
+        description: Helm or Docker package
+        required: true
+        type: string
+      git_tag_name:
+        description: Github released tag name
+        required: true
+        type: string
+
+jobs:
+
+  helm-chart-publish:
+    if: inputs.package_type == 'helm'
+    name: "Helm publish (${{ inputs.package }}-${{ inputs.version }})"
+    uses: idirze/workflows/.github/workflows/helm-publish-template.yml@main
+    with:
+        path: ${{ inputs.path }}
+        chart_name: ${{ inputs.package }}
+        version: ${{ inputs.version }}
+        git_tag_name: ${{ inputs.git_tag_name }}
+    secrets: inherit
+
+  docker-publish:
+    if: inputs.package_type == 'docker'
+    name: "Docker publish (${{ inputs.package }}-${{ inputs.version }})"
+    uses: idirze/workflows/.github/workflows/docker-publish-template.yml@main
+    with:
+        path: ${{ inputs.path }}
+        image: ${{ inputs.package }}
+        version: ${{ inputs.version }}
+        git_tag_name: ${{ inputs.git_tag_name }}
+    secrets: inherit
+
+

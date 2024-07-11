@@ -43,15 +43,17 @@ jobs:
         id: github-releases
         with:
           script: |
-            const charts_released = JSON.parse(JSON.stringify(${{ steps.release-please.outputs.paths_released }}))
+            const paths_released = JSON.parse(JSON.stringify(${{ steps.release-please.outputs.paths_released }}))
             const releases_output = JSON.parse(JSON.stringify(${{ toJSON(steps.release-please.outputs) }}))
             const github_releases = []
-            for(const path of charts_released){
+            for(const path of paths_released){
               github_releases.push(
                 {
                   path: path,
-                  chart_name: path.replace(/^.+\//,''),
-                  version: releases_output[`${path}--version`]
+                  package: path.includes('helm/') ? path.replace(/^.+\//,''): '${{ github.repository }}'.replace(/^.+\//,''),
+                  version: releases_output[`${path}--version`],
+                  package_type: path.replace(/\/.+/,''),
+                  tag_name: releases_output[`${path}--tag_name`]
                 }
               )
             }
@@ -64,12 +66,12 @@ jobs:
       matrix: 
         release: ${{ fromJson(needs.release-please.outputs.github_releases) }}
       fail-fast: false
-      # Prevent concurrency conflicts when updating index.yaml in gh-pages
-      max-parallel: 1
-    uses: idirze/workflows/.github/workflows/helm-publish.yml@main
+    uses: idirze/workflows/.github/workflows/helm-docker-release-please-template.yml@main
     with:
       path: ${{ matrix.release.path }}
-      chart_name: ${{ matrix.release.chart_name }}
+      package: ${{ matrix.release.package }}
       version: ${{ matrix.release.version }}
+      package_type: ${{ matrix.release.package_type }}
+      git_tag_name: ${{ matrix.release.tag_name }}
     secrets: inherit
                 
