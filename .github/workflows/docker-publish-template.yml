@@ -21,20 +21,14 @@ on:
     inputs:
       path:
         description: Package path
-        required: true
+        required: false
         type: string
-      image:
-        description: Docker image name
-        required: true
-        type: string
-      version:
-        description: Docker image version
-        required: true
-        type: string
-      git_tag_name:
+        default: 'docker/'
+      registry:
         description: Github released tag name
-        required: true
+        required: false
         type: string
+        default: 'quay.io'
 
 defaults:
   run:
@@ -42,15 +36,30 @@ defaults:
 
 jobs:
 
+  latest-image-tag:
+    runs-on: "ubuntu-latest"
+    outputs:
+      image: ${{ steps.latest-image-tag.outputs.image }}
+      latest_tag: ${{ steps.latest-image-tag.outputs.latest_tag }}
+      latest_git_tag: ${{ steps.latest-image-tag.outputs.latest_git_tag }}
+    steps:
+      - name: Checkout Repo ⚡️
+        uses: actions/checkout@v4
+
+      - name: Get latest GitHub Release tag name 📥
+        id: latest-image-tag
+        uses: idirze/workflows/.github/actions/latest-image-tag@main
+
   docker-image-publish:
-    name: "Docker publish (${{ inputs.image }}:${{ inputs.version }})"
+    needs: [latest-image-tag]
+    name: "Docker publish (${{ needs.latest-image-tag.outputs.image }}:${{ needs.latest-image-tag.outputs.latest_tag }})"
     runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout release tag ${{ inputs.git_tag_name }} ⚡️
+      - name: Checkout release tag ${{ needs.latest-image-tag.outputs.latest_git_tag }} ⚡️
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs.git_tag_name }}
+          ref: ${{ needs.latest-image-tag.outputs.latest_git_tag }}
 
       ### Common steps between CI and Publish
       - name: Free up disk space 📦
@@ -62,10 +71,9 @@ jobs:
       - name: Set up container registry 📦
         id: registry
         run:  |
-            echo "registry=${{ vars.REGISTRY || 'quay.io' }}" >> $GITHUB_OUTPUT
-            echo "registry_repo=${{ vars.REGISTRY || 'quay.io' }}/okdp" >> $GITHUB_OUTPUT
-            #echo "registry_repo=${{ vars.REGISTRY || 'quay.io' }}/${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
-        shell: bash
+            echo "registry=${{ vars.REGISTRY || inputs.registry }}" >> $GITHUB_OUTPUT
+            echo "registry_repo=${{ vars.REGISTRY || inputs.registry }}/okdp" >> $GITHUB_OUTPUT
+            #echo "registry_repo=${{ vars.REGISTRY || inputs.registry }}/${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
 
       ### Publish steps
       ### The publish and periodic rebuilds are based on the latest stable github release tag
@@ -76,17 +84,31 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_ROBOT_TOKEN }}
 
+      - name: Set image tags
+        id: image-tags
+        run: |
+           IMAGE_TAG=$(echo "${{ needs.latest-image-tag.outputs.latest_tag }}" | awk -F- '{ print $1 }')
+           if [ "$IMAGE_TAG" != "${{ needs.latest-image-tag.outputs.latest_tag }}" ]
+           then
+             IMAGE_TAGS="${{ steps.registry.outputs.registry_repo }}/${{ needs.latest-image-tag.outputs.image }}:${IMAGE_TAG},"
+           fi
+
+           IMAGE_TAGS+="${{ steps.registry.outputs.registry_repo }}/${{ needs.latest-image-tag.outputs.image }}:${{ needs.latest-image-tag.outputs.latest_tag }}"
+           
+           echo "tags=${IMAGE_TAGS}" >> $GITHUB_OUTPUT
+           echo "Set image tags to: $IMAGE_TAGS"
+
       - name: Build and push to ${{ steps.registry.outputs.registry_repo }} repository 📤
         uses: docker/build-push-action@v5
         with:
           context: ${{ inputs.path }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.registry.outputs.registry_repo }}/${{ inputs.image }}:${{ inputs.version }}
+          tags: ${{ steps.image-tags.outputs.tags }}
           labels: |
-            org.opencontainers.image.title="${{ inputs.image }}"
-            org.opencontainers.image.version="${{ inputs.version }}"
-            org.opencontainers.image.description="${{ inputs.image }} image"
+            org.opencontainers.image.title="${{ needs.latest-image-tag.outputs.image }}"
+            org.opencontainers.image.version="${{ needs.latest-image-tag.outputs.latest_tag }}"
+            org.opencontainers.image.description="${{ needs.latest-image-tag.outputs.image }} image"
             org.opencontainers.image.source="https://github.com/${{ github.repository }}"
             org.opencontainers.image.licenses="Apache-2.0"
 

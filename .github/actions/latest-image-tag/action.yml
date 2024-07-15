@@ -1,0 +1,55 @@
+#
+# Copyright 2024 tosit.io
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: latest-image-tag
+description: Get latest image tag from the latest Github release
+
+outputs:
+  image:
+    description: "Docker image name"
+    value: ${{ steps.git-release-tag.outputs.image }}
+  latest_tag:
+    description: "Latest docker image tag"
+    value: ${{ steps.git-release-tag.outputs.latest_tag }}
+  latest_git_tag:
+    description: "The github release tag without the leading 'v'"
+    value: ${{ steps.git-release-tag.outputs.latest_git_tag }}
+
+runs:
+  using: composite
+  steps:
+
+    - name: Get latest image tag from the latest Github release
+      id: git-release-tag
+      run: |
+        LATEST_GIT_TAG=$(gh release ls -L 200 --json tagName --jq '.[].tagName|select(all(.; contains("helm") | not))' | head -1)
+        LATEST_TAG=$(echo $LATEST_GIT_TAG | tr -d 'v')
+        echo "latest_git_tag=${LATEST_GIT_TAG}" >> $GITHUB_OUTPUT
+        echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+        echo "image=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+
+    - name: Info - Found latest release tag
+      run: |
+          echo "image: ${{ steps.git-release-tag.outputs.image }}"
+          echo "latest_tag: ${{ steps.git-release-tag.outputs.latest_tag }}"
+          echo "latest_git_tag: ${{ steps.git-release-tag.outputs.latest_git_tag }}"
+      shell: bash
+    
+
+

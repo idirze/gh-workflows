@@ -57,11 +57,6 @@ jobs:
     if: inputs.package_type == 'docker'
     name: "Docker publish (${{ inputs.package }}-${{ inputs.version }})"
     uses: idirze/workflows/.github/workflows/docker-publish-template.yml@main
-    with:
-        path: ${{ inputs.path }}
-        image: ${{ inputs.package }}
-        version: ${{ inputs.version }}
-        git_tag_name: ${{ inputs.git_tag_name }}
     secrets: inherit
 
 
