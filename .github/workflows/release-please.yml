@@ -47,12 +47,12 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release-please
       
-      - name: Set up GitHub Actions git bot 📦
-        uses: idirze/workflows/.github/actions/setup-git-bot@main
-
       - name: Checkout Repo ⚡️
         if: ${{ steps.release-please.outputs.release_created }}
         uses: actions/checkout@v4
+
+      - name: Set up GitHub Actions git bot 📦
+        uses: idirze/workflows/.github/actions/setup-git-bot@main
 
         # https://github.com/google-github-actions/release-please-action/blob/main/.github/workflows/release-please.yaml
       - name: Update major tag to the latest tag
