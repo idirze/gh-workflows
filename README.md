@@ -1,5 +1,5 @@
 [![License Apache2](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
-
+[![release-please](https://github.com/okdp/gh-workflows/actions/workflows/release-please.yml/badge.svg)](https://github.com/okdp/gh-workflows/actions/workflows/release-please.yml)
 <p align="center">
     <img width="400px" height=auto src="https://okdp.io/logos/okdp-inverted.png" />
 </p>

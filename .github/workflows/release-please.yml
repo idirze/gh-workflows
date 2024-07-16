@@ -1,0 +1,71 @@
+#
+# Copyright 2024 tosit.io
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: release-please
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# https://docs.github.com/en/actions/using-jobs/using-concurrency
+concurrency:
+  # Only cancel in-progress jobs or runs for the current workflow - matches against branch & tags
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    # Skip the release process in the fork
+    # The pull request should come from the same repo (github_token from the fork does not have write permissions)
+    if: github.repository_owner == 'idirze' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release-please
+      
+      - name: Set up GitHub Actions git bot 📦
+        uses: idirze/workflows/.github/actions/setup-git-bot@main
+
+      - name: Checkout Repo ⚡️
+        if: ${{ steps.release-please.outputs.release_created }}
+        uses: actions/checkout@v4
+
+        # https://github.com/google-github-actions/release-please-action/blob/main/.github/workflows/release-please.yaml
+      - name: Update major tag to the latest tag
+        if: ${{ steps.release-please.outputs.release_created }}
+        run: |
+          git remote add gh-token "https://${{ secrets.GITHUB_TOKEN}}@github.com/${{ github.repository }}"
+          git tag -d v${{ steps.release-please.outputs.major }} || true
+          git tag -d v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }} || true
+          git push origin :v${{ steps.release-please.outputs.major }} || true
+          git push origin :v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }} || true
+          git tag -a v${{ steps.release-please.outputs.major }} -m "Release v${{ steps.release-please.outputs.major }}"
+          git tag -a v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }} -m "Release v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }}"
+          git push origin v${{ steps.release-please.outputs.major }}
+          git push origin v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }}
+          
+        
