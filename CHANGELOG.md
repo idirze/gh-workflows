@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/OKDP/gh-workflows/compare/v1.1.2...v1.1.3) (2026-04-07)
+
+
+### chore
+
+* release 1.1.3 ([ec196d5](https://github.com/OKDP/gh-workflows/commit/ec196d58fdf9dcbfede2f9cc0c01650d9766b0dc))
+
 ## [1.1.2](https://github.com/OKDP/gh-workflows/compare/v1.1.1...v1.1.2) (2025-04-03)
 
 
