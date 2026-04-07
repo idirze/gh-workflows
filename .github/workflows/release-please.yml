@@ -49,7 +49,7 @@ jobs:
         id: release-please
       
       - name: Checkout Repo ⚡️
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up GitHub Actions git bot 📦
         uses: okdp/gh-workflows/.github/actions/setup-git-bot@main
