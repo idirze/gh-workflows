@@ -23,21 +23,25 @@ on:
         description: Package path
         required: false
         type: string
-        default: 'docker/'
+        default: "docker/"
       ci_registry:
-        description: "The registry used to push ci images"
+        description: The registry used to push CI images
         required: false
         type: string
         default: "ghcr.io"
+
+permissions:
+  contents: read
+  packages: write
 
 defaults:
   run:
     shell: bash
 
 jobs:
-
   docker-build-test-push:
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repo ⚡️
         uses: actions/checkout@v6
@@ -51,9 +55,24 @@ jobs:
       - name: Set up container registry 📦
         id: ci_registry
         run:  |
-            echo "ci_registry=${{ vars.CI_REGISTRY || inputs.ci_registry }}" >> $GITHUB_OUTPUT
-            echo "registry_repo=${{ vars.CI_REGISTRY || inputs.ci_registry }}/${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
-            echo "image=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+          echo "ci_registry=${{ vars.CI_REGISTRY || inputs.ci_registry }}" >> "$GITHUB_OUTPUT"
+          echo "registry_repo=${{ vars.CI_REGISTRY || inputs.ci_registry }}/${GITHUB_REPOSITORY_OWNER@L}" >> "$GITHUB_OUTPUT"
+          echo "image=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate CI push policy 🔎
+        id: push-policy
+        run: |
+          can_push_ci=true
+
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            head_repo="$(jq -r '.pull_request.head.repo.full_name // ""' "$GITHUB_EVENT_PATH")"
+
+            if [[ "$head_repo" != "$GITHUB_REPOSITORY" ]]; then
+              can_push_ci=false
+            fi
+          fi
+
+          echo "can_push_ci=$can_push_ci" >> "$GITHUB_OUTPUT"
 
       - name: Get Git Branch Name Action
         id: get-branch
@@ -66,10 +85,15 @@ jobs:
       - name: Set CI image tag
         id: image-tag
         run: |
-            echo "ci_tag=${{ steps.ci_registry.outputs.registry_repo }}/${{ steps.ci_registry.outputs.image }}:${{ steps.get-branch.outputs.branch }}" >> $GITHUB_OUTPUT
-            echo "Set image tags to: $IMAGE_TAGS"
+          branch="${{ steps.get-branch.outputs.branch }}"
+          tag_branch="$(echo "$branch" | sed 's#/#--#g')"
+          ci_tag="${{ steps.ci_registry.outputs.registry_repo }}/${{ steps.ci_registry.outputs.image }}:${tag_branch}"
+
+          echo "ci_tag=$ci_tag" >> "$GITHUB_OUTPUT"
+          echo "Set image tag to: $ci_tag"
 
       - name: Login into ${{ steps.ci_registry.outputs.ci_registry }} registry 🔐
+        if: steps.push-policy.outputs.can_push_ci == 'true'
         uses: docker/login-action@v4
         with:
           registry: ${{ steps.ci_registry.outputs.ci_registry }}
@@ -82,7 +106,5 @@ jobs:
           context: .
           file: ${{ inputs.path }}Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ steps.push-policy.outputs.can_push_ci == 'true' }}
           tags: ${{ steps.image-tag.outputs.ci_tag }}
-
-
