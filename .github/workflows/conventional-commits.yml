@@ -1,0 +1,10 @@
+name: Conventional Commits
+
+on:
+  workflow_call:
+jobs:
+  check-conventional-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webiny/action-conventional-commits@v1.0.3
