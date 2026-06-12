@@ -25,6 +25,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -33,30 +36,34 @@ jobs:
 
   helm-lint:
     runs-on: "ubuntu-latest"
+    permissions:
+      contents: read
     steps:
       - name: Checkout Repo ⚡️
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
       
       - name: Setup helm
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
           version: v3.15.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.10'
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.6.1
+        uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
   
       - name: Run chart-testing (list-changed) ✅
         id: list-changed
         run: |
             changed=$(ct list-changed --config .ct.yml)
             if [[ -n "$changed" ]]; then
-              echo "list_changed=$(echo ${changed} | tr -d \')" >> "$GITHUB_OUTPUT"
+              changed_single_line="${changed//$'\n'/ }"
+              changed_single_line="${changed_single_line//\'/}"
+              echo "list_changed=$changed_single_line" >> "$GITHUB_OUTPUT"
               echo "changed=true" >> "$GITHUB_OUTPUT"
             fi
   
@@ -65,16 +72,32 @@ jobs:
         run: ct lint --config .ct.yml --check-version-increment=false --print-config
   
       - name: Free up disk space 🧹
-        if: steps.list-changed.outputs.changed == 'true' && inputs.skip_chart_test == 'false'
+        if: steps.list-changed.outputs.changed == 'true' && !inputs.skip_chart_test
         uses: okdp/gh-workflows/.github/actions/free-disk-space@v1
 
       - name: Set up kind cluster ✅
-        if: steps.list-changed.outputs.changed == 'true' && inputs.skip_chart_test == 'false'
+        if: steps.list-changed.outputs.changed == 'true' && !inputs.skip_chart_test
         uses: okdp/gh-workflows/.github/actions/setup-kind@v1
 
       - name: Run chart-testing (install) ✅
-        if: steps.list-changed.outputs.changed == 'true' && inputs.skip_chart_test == 'false'
+        if: steps.list-changed.outputs.changed == 'true' && !inputs.skip_chart_test
         run: ct install --config .ct.yml --print-config
+
+  helm-docs:
+    needs: [helm-lint]
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: write
+    # Github token from forked repo does not have permission to push to target repo.
+    # Skip the step for PRs from forked repos.
+    if: |
+      (github.event_name == 'push') || (github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name == github.repository)
+    steps:
+      - name: Checkout Repo ⚡️
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
 
       - name: Install helm-docs
         uses: okdp/gh-workflows/.github/actions/helm-docs@v1
@@ -85,16 +108,10 @@ jobs:
           helm-docs -c .
 
       - name: Commit helm docs changes
-        # Github token from forked repo does not have permission to push to target repo
-        # Skip the step for PRs from forked repos
-        if: |
-            ${{ ((github.event_name == 'push') || (github.event_name == 'pull_request'
-                  && github.event.pull_request.head.repo.full_name == github.repository)) }}
-        uses: EndBug/add-and-commit@v9
+        uses: EndBug/add-and-commit@290ea2c423ad77ca9c62ae0f5b224379612c0321 # v10.0.0
         with:
           pull: "--rebase --autostash"
           add: "**/README.md"
           message: '[helm-docs] Update readme'
           author_name: github-actions[bot]
           author_email: 41898282+github-actions[bot]@users.noreply.github.com
-

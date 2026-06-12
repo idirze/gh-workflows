@@ -35,10 +35,18 @@ on:
         description: Github released tag name
         required: true
         type: string
+    secrets:
+      REGISTRY_USERNAME:
+        required: true
+      REGISTRY_ROBOT_TOKEN:
+        required: true
   
 env:
   chart_package_name: ${{ inputs.chart_name }}-${{ inputs.version }}.tgz
   cr_release_name_template: "{{ .Name }}-v{{ .Version }}"
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -49,21 +57,26 @@ jobs:
   helm-chart-publish:
     name: "Helm publish (${{ inputs.chart_name }}-${{ inputs.version }})"
     runs-on: "ubuntu-latest"
+    permissions:
+      contents: write
     steps:
       - name: Checkout release tag ${{ inputs.git_tag_name }} ⚡️
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           ref: ${{ inputs.git_tag_name }}
       
       - name: Update release title
-        run: |
-          gh release edit ${{ inputs.git_tag_name }} --title="${{ inputs.chart_name }}-helm-chart-${{ inputs.version }}"
         env:
+          CHART_NAME: ${{ inputs.chart_name }}
+          GIT_TAG_NAME: ${{ inputs.git_tag_name }}
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release edit "$GIT_TAG_NAME" --title="${CHART_NAME}-helm-chart-${VERSION}"
 
       - name: Setup helm 📦
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
           version: v3.15.1
 
@@ -74,24 +87,29 @@ jobs:
           helm repo update
 
       - name: Install chart-releaser (cr) 📦
-        uses: helm/chart-releaser-action@v1
+        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
         with:
           install_only: true
 
       - name: Package helm chart ${{ inputs.path }} (${{ inputs.version }}) 📦
+        env:
+          CHART_PATH: ${{ inputs.path }}
         run: |
-          helm dependency build ${{ inputs.path }}
-          cr package ${{ inputs.path }}
+          helm dependency build "$CHART_PATH"
+          cr package "$CHART_PATH"
     
       - name: Set up oci charts registry 📦
         id: registry
+        env:
+          VAR_REGISTRY: ${{ vars.REGISTRY }}
         run:  |
-            echo "registry=${{ vars.REGISTRY || 'quay.io' }}" >> $GITHUB_OUTPUT
-            echo "registry_repo=${{ vars.REGISTRY || 'quay.io' }}/${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
+            registry="${VAR_REGISTRY:-quay.io}"
+            echo "registry=$registry" >> "$GITHUB_OUTPUT"
+            echo "registry_repo=${registry}/${GITHUB_REPOSITORY_OWNER@L}" >> "$GITHUB_OUTPUT"
      
       # More secure than helm registry login
       - name: Login into ${{ steps.registry.outputs.registry }} oci charts registry 🔐
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ steps.registry.outputs.registry }}
           username: ${{ secrets.REGISTRY_USERNAME }}
@@ -104,15 +122,18 @@ jobs:
       #   run: cosign version
 
       - name: Push chart ${{ env.chart_package_name }} to oci registry  📤
+        env:
+          REGISTRY_REPO: ${{ steps.registry.outputs.registry_repo }}
         run: |
-            helm push ./.cr-release-packages/${{ env.chart_package_name }} \
-              oci://${{ steps.registry.outputs.registry_repo }}/charts
+            helm push "./.cr-release-packages/${chart_package_name}" \
+              "oci://${REGISTRY_REPO}/charts"
 
       - name: Upload Chart ${{ env.chart_package_name }} package to Github release  📤
-        run: |
-          gh release upload ${{ inputs.git_tag_name }} ./.cr-release-packages/${{ env.chart_package_name }} --clobber
         env:
+          GIT_TAG_NAME: ${{ inputs.git_tag_name }}
           GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GIT_TAG_NAME" "./.cr-release-packages/${chart_package_name}" --clobber
 
       # - name: Checkout gh-pages branch  ⚡️
       #   uses: actions/checkout@v6

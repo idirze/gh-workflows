@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout Repo ⚡️
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Free up disk space 📦
         uses: okdp/gh-workflows/.github/actions/free-disk-space@v1
@@ -54,9 +54,13 @@ jobs:
 
       - name: Set up container registry 📦
         id: ci_registry
+        env:
+          INPUT_CI_REGISTRY: ${{ inputs.ci_registry }}
+          VAR_CI_REGISTRY: ${{ vars.CI_REGISTRY }}
         run:  |
-          echo "ci_registry=${{ vars.CI_REGISTRY || inputs.ci_registry }}" >> "$GITHUB_OUTPUT"
-          echo "registry_repo=${{ vars.CI_REGISTRY || inputs.ci_registry }}/${GITHUB_REPOSITORY_OWNER@L}" >> "$GITHUB_OUTPUT"
+          ci_registry="${VAR_CI_REGISTRY:-$INPUT_CI_REGISTRY}"
+          echo "ci_registry=$ci_registry" >> "$GITHUB_OUTPUT"
+          echo "registry_repo=${ci_registry}/${GITHUB_REPOSITORY_OWNER@L}" >> "$GITHUB_OUTPUT"
           echo "image=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
 
       - name: Evaluate CI push policy 🔎
@@ -84,24 +88,27 @@ jobs:
 
       - name: Set CI image tag
         id: image-tag
+        env:
+          BRANCH: ${{ steps.get-branch.outputs.branch }}
+          IMAGE: ${{ steps.ci_registry.outputs.image }}
+          REGISTRY_REPO: ${{ steps.ci_registry.outputs.registry_repo }}
         run: |
-          branch="${{ steps.get-branch.outputs.branch }}"
-          tag_branch="$(echo "$branch" | sed 's#/#--#g')"
-          ci_tag="${{ steps.ci_registry.outputs.registry_repo }}/${{ steps.ci_registry.outputs.image }}:${tag_branch}"
+          tag_branch="$(echo "$BRANCH" | sed 's#/#--#g')"
+          ci_tag="${REGISTRY_REPO}/${IMAGE}:${tag_branch}"
 
           echo "ci_tag=$ci_tag" >> "$GITHUB_OUTPUT"
           echo "Set image tag to: $ci_tag"
 
       - name: Login into ${{ steps.ci_registry.outputs.ci_registry }} registry 🔐
         if: steps.push-policy.outputs.can_push_ci == 'true'
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ steps.ci_registry.outputs.ci_registry }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image ${{ steps.image-tag.outputs.ci_tag }} 📤
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: ${{ inputs.path }}Dockerfile

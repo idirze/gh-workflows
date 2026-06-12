@@ -38,16 +38,23 @@ runs:
   steps:
     - name: Get branch name
       id: git-branch
+      env:
+        EVENT_NAME: ${{ inputs.event_name }}
+        HEAD_REF: ${{ inputs.head_ref }}
+        REF: ${{ inputs.ref }}
       run: |
-        if [[ "${{ inputs.event_name }}" == "push" ]]; then
-          BRANCH_NAME="${GITHUB_REF##*/}"
-        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          BRANCH_NAME="${GITHUB_REF##*/}"
-        elif [[ "${{ inputs.event_name }}" == "pull_request" ]]; then
-          BRANCH_NAME="${{ inputs.head_ref }}"
+        if [[ "$EVENT_NAME" == "push" ]]; then
+          BRANCH_NAME="${REF#refs/heads/}"
+        elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          BRANCH_NAME="${REF#refs/heads/}"
+        elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+          BRANCH_NAME="$HEAD_REF"
+        else
+          echo "Unsupported event: $EVENT_NAME" >&2
+          exit 1
         fi
         # Convert branch name to lowercase and replace '/' with '-'
         BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
         echo "Branch name: $BRANCH_NAME"
-        echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+        echo "branch=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
       shell: bash

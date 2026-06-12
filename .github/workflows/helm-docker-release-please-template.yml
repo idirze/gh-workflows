@@ -39,26 +39,40 @@ on:
         description: Github released tag name
         required: true
         type: string
+    secrets:
+      REGISTRY_USERNAME:
+        required: true
+      REGISTRY_ROBOT_TOKEN:
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
 
   helm-chart-publish:
     if: inputs.package_type == 'helm'
     name: "Helm publish (${{ inputs.package }}-${{ inputs.version }})"
+    permissions:
+      contents: write
     uses: okdp/gh-workflows/.github/workflows/helm-publish-template.yml@v1
     with:
         path: ${{ inputs.path }}
         chart_name: ${{ inputs.package }}
         version: ${{ inputs.version }}
         git_tag_name: ${{ inputs.git_tag_name }}
-    secrets: inherit
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_ROBOT_TOKEN: ${{ secrets.REGISTRY_ROBOT_TOKEN }}
 
   docker-publish:
     if: inputs.package_type == 'docker'
     name: "Docker publish (${{ inputs.package }}-${{ inputs.version }})"
+    permissions:
+      contents: read
     uses: okdp/gh-workflows/.github/workflows/docker-publish-template.yml@v1
     with:
       path: ${{ inputs.path }}
-    secrets: inherit
-
-
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_ROBOT_TOKEN: ${{ secrets.REGISTRY_ROBOT_TOKEN }}

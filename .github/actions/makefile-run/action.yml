@@ -28,7 +28,15 @@ runs:
   steps:
 
     - name: Run tests if enabled
-      run: ${{ inputs.command }}
-      shell: bash
+      env:
+        MAKE_COMMAND: ${{ inputs.command }}
+      run: |
+        if [[ ! "$MAKE_COMMAND" =~ ^make([[:space:]][A-Za-z0-9_./:=+-]+)*$ ]]; then
+          echo "Unsupported make command: $MAKE_COMMAND" >&2
+          exit 1
+        fi
 
+        read -r -a command <<< "$MAKE_COMMAND"
+        "${command[@]}"
+      shell: bash
 

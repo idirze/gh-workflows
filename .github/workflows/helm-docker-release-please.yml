@@ -20,9 +20,7 @@ on:
   workflow_call:
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 defaults:
   run:
@@ -31,27 +29,34 @@ defaults:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     outputs:
       github_releases: ${{ steps.github-releases.outputs.result }}
     # Skip the release process in the fork
     # The pull request should come from the same repo (github_token from the fork does not have write permissions)
     if: github.repository_owner == 'OKDP' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release-please
       
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         id: github-releases
+        env:
+          PATHS_RELEASED: ${{ steps.release-please.outputs.paths_released || '[]' }}
+          RELEASE_OUTPUTS: ${{ toJSON(steps.release-please.outputs) }}
         with:
           script: |
-            const paths_released = JSON.parse(JSON.stringify(${{ steps.release-please.outputs.paths_released }}))
-            const releases_output = JSON.parse(JSON.stringify(${{ toJSON(steps.release-please.outputs) }}))
+            const paths_released = JSON.parse(process.env.PATHS_RELEASED || '[]')
+            const releases_output = JSON.parse(process.env.RELEASE_OUTPUTS || '{}')
             const github_releases = []
             for(const path of paths_released){
               github_releases.push(
                 {
                   path: path,
-                  package: path.includes('helm/') ? path.replace(/^.+\//,''): '${{ github.repository }}'.replace(/^.+\//,''),
+                  package: path.includes('helm/') ? path.replace(/^.+\//,''): process.env.GITHUB_REPOSITORY.replace(/^.+\//,''),
                   version: releases_output[`${path}--version`] || releases_output['version'],
                   package_type: path.replace(/^\.|\/.*/, '') || 'docker',
                   tag_name: releases_output[`${path}--tag_name`] || releases_output['version']
@@ -67,6 +72,8 @@ jobs:
       matrix: 
         release: ${{ fromJson(needs.release-please.outputs.github_releases) }}
       fail-fast: false
+    permissions:
+      contents: write
     uses: okdp/gh-workflows/.github/workflows/helm-docker-release-please-template.yml@v1
     with:
       path: ${{ matrix.release.path }}
@@ -74,5 +81,7 @@ jobs:
       version: ${{ matrix.release.version }}
       package_type: ${{ matrix.release.package_type }}
       git_tag_name: ${{ matrix.release.tag_name }}
-    secrets: inherit
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_ROBOT_TOKEN: ${{ secrets.REGISTRY_ROBOT_TOKEN }}
                 
