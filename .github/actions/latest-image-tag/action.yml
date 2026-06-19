@@ -36,20 +36,28 @@ runs:
       id: git-release-tag
       run: |
         LATEST_GIT_TAG=$(gh release ls -L 200 --json tagName --jq '.[].tagName|select(all(.; contains("helm") | not))' | head -1)
-        LATEST_TAG=$(echo $LATEST_GIT_TAG | tr -d 'v')
-        echo "latest_git_tag=${LATEST_GIT_TAG}" >> $GITHUB_OUTPUT
-        echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-        echo "image=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+        if [[ -z "$LATEST_GIT_TAG" ]]; then
+          echo "No non-helm GitHub release tag found" >&2
+          exit 1
+        fi
+
+        LATEST_TAG=$(echo "$LATEST_GIT_TAG" | tr -d 'v')
+        echo "latest_git_tag=${LATEST_GIT_TAG}" >> "$GITHUB_OUTPUT"
+        echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+        echo "image=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
       env:
         GH_TOKEN: ${{ github.token }}
       shell: bash
 
     - name: Info - Found latest release tag
+      env:
+        IMAGE: ${{ steps.git-release-tag.outputs.image }}
+        LATEST_GIT_TAG: ${{ steps.git-release-tag.outputs.latest_git_tag }}
+        LATEST_TAG: ${{ steps.git-release-tag.outputs.latest_tag }}
       run: |
-          echo "image: ${{ steps.git-release-tag.outputs.image }}"
-          echo "latest_tag: ${{ steps.git-release-tag.outputs.latest_tag }}"
-          echo "latest_git_tag: ${{ steps.git-release-tag.outputs.latest_git_tag }}"
+          echo "image: $IMAGE"
+          echo "latest_tag: $LATEST_TAG"
+          echo "latest_git_tag: $LATEST_GIT_TAG"
       shell: bash
     
-
 

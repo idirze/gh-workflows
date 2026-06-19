@@ -24,9 +24,11 @@ on:
       - main
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
 
 # https://docs.github.com/en/actions/using-jobs/using-concurrency
 concurrency:
@@ -34,38 +36,46 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     # Skip the release process in the fork
     # The pull request should come from the same repo (github_token from the fork does not have write permissions)
     if: github.repository_owner == 'OKDP' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release-please
       
       - name: Checkout Repo ⚡️
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Set up GitHub Actions git bot 📦
-        uses: okdp/gh-workflows/.github/actions/setup-git-bot@main
+        uses: ./.github/actions/setup-git-bot
 
         # https://github.com/google-github-actions/release-please-action/blob/main/.github/workflows/release-please.yaml
       - name: Update major tag to the latest tag
         if: ${{ steps.release-please.outputs.release_created }}
+        env:
+          RELEASE_MAJOR: ${{ steps.release-please.outputs.major }}
+          RELEASE_MINOR: ${{ steps.release-please.outputs.minor }}
         run: |
-          git remote add gh-token "https://${{ secrets.GITHUB_TOKEN}}@github.com/${{ github.repository }}"
-          git tag -d v${{ steps.release-please.outputs.major }} || true
-          git tag -d v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }} || true
-          git push origin :v${{ steps.release-please.outputs.major }} || true
-          git push origin :v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }} || true
-          git tag -a v${{ steps.release-please.outputs.major }} -m "Release v${{ steps.release-please.outputs.major }}"
-          git tag -a v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }} -m "Release v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }}"
-          git push origin v${{ steps.release-please.outputs.major }}
-          git push origin v${{ steps.release-please.outputs.major }}.${{ steps.release-please.outputs.minor }}
+          if [[ ! "$RELEASE_MAJOR" =~ ^[0-9]+$ || ! "$RELEASE_MINOR" =~ ^[0-9]+$ ]]; then
+            echo "Invalid release version outputs" >&2
+            exit 1
+          fi
 
-        
+          major_tag="v${RELEASE_MAJOR}"
+          minor_tag="v${RELEASE_MAJOR}.${RELEASE_MINOR}"
+
+          git tag -d "$major_tag" || true
+          git tag -d "$minor_tag" || true
+          git push origin ":refs/tags/${major_tag}" || true
+          git push origin ":refs/tags/${minor_tag}" || true
+          git tag -a "$major_tag" -m "Release $major_tag"
+          git tag -a "$minor_tag" -m "Release $minor_tag"
+          git push origin "refs/tags/${major_tag}"
+          git push origin "refs/tags/${minor_tag}"
